@@ -62,47 +62,55 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
       body: globals.products.isEmpty
           ? const Center(child: CircularProgressIndicator())
-          : ListView.builder(
-              itemCount: globals.products.length,
-              itemBuilder: (context, index) {
-                final product = globals.products[index];
-                return Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Center(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Image.network(
-                          product['image'],
-                          width: screenWidth * 0.3, // Set image width to 50% of screen width
+          :           ListView.builder(
+            itemCount: globals.products.length,
+            itemBuilder: (context, index) {
+              final product = globals.products[index];
+              return Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Container(
+                        width: screenWidth * 0.4,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Image.network(
+                              product['image'],
+                              width: screenWidth * 0.5, 
+                            ),
+                            const SizedBox(height: 8.0),
+                            Text(
+                              product['title'],
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            ElevatedButton(
+                              onPressed: () {},
+                              style: ElevatedButton.styleFrom(
+                                foregroundColor: Colors.white,
+                                backgroundColor: Colors.black,
+                              ),
+                              child: const Text('Show more'),
+                            ),
+                            const SizedBox(height: 8.0), // Add this SizedBox for spacing
+                            Text(
+                              '\$${product['price']}',
+                              textAlign: TextAlign.left,
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 8.0),
-                        Text(
-                          product['title'],
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        ElevatedButton(
-                          onPressed: () {},
-                          style: ElevatedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            backgroundColor: Colors.black,
-                          ),
-                          child: const Text('Show more'),
-                        ),
-                        const SizedBox(height: 8.0), // Add this SizedBox for spacing
-                        Text(
-                          '\$${product['price']}',
-                          textAlign: TextAlign.left,
-                        ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 16.0), // Gap between items
+                    ],
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
+          )
     );
   }
 }
