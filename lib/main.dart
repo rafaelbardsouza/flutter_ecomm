@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_ecomm/screens/product.dart';
 import 'package:local_auth/local_auth.dart';
 import 'globals.dart' as globals;
 
@@ -184,7 +185,16 @@ class _MyHomePageState extends State<MyHomePage> {
                                         ),
                                       ),
                                       ElevatedButton(
-                                        onPressed: () {},
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => ProductScreen(
+                                                product: product,
+                                              ),
+                                            ),
+                                          );
+                                        },
                                         style: ElevatedButton.styleFrom(
                                           foregroundColor: Colors.white,
                                           backgroundColor: Colors.black,
