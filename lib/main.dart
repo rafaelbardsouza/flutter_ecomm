@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
-import 'globals.dart' as globals;
+import 'widgets/pin_input_screen.dart'; // Import PinInputScreen
+import 'services/product_service.dart';
+import 'database/app_database.dart';
+import 'database/product_model.dart';
 
 void main() {
   runApp(const MyApp());
@@ -37,13 +40,49 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   final LocalAuthentication auth = LocalAuthentication();
+  final AppDatabase database = AppDatabase();
+  final ProductService productService;
+
+  _MyHomePageState() : productService = ProductService(AppDatabase());
+
   bool _isAuthenticated = false;
   bool _isLoading = true;
+  List<ProductModel> products = []; // Use ProductModel for the list
 
   @override
   void initState() {
     super.initState();
     _authenticate();
+  }
+
+  void _showPinAuthentication() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Enter PIN'),
+          content: PinInputScreen(
+            onPinEntered: (String pin) {
+              _validatePin(pin);
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  void _validatePin(String enteredPin) async {
+    const correctPin = "1234";
+    if (enteredPin == correctPin) {
+      setState(() {
+        _isAuthenticated = true;
+        _isLoading = false;
+      });
+      Navigator.of(context).pop();
+      await _loadProducts();
+    } else {
+      print("Incorrect PIN");
+    }
   }
 
   Future<void> _authenticate() async {
@@ -73,7 +112,7 @@ class _MyHomePageState extends State<MyHomePage> {
       });
 
       if (isAuthenticated) {
-        await _fetchData();
+        await _loadProducts(); // Updated to _loadProducts
       } else {
         _showPinAuthentication(); // Show PIN authentication if biometrics fail
       }
@@ -86,45 +125,29 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  void _showPinAuthentication() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Enter PIN'),
-          content: PinInputScreen(
-            onPinEntered: (String pin) {
-              _validatePin(pin);
-            },
-          ),
-        );
-      },
-    );
-  }
+  Future<void> _loadProducts() async {
+    setState(() {
+      _isLoading = true;
+    });
 
-  void _validatePin(String enteredPin) async {
-    const correctPin = "1234"; // Example PIN; retrieve or hash as needed
-    if (enteredPin == correctPin) {
-      setState(() {
-        _isAuthenticated = true;
-        _isLoading = false;
-      });
-      Navigator.of(context).pop(); // Close the PIN input dialog
-      await _fetchData();
-    } else {
-      print("Incorrect PIN");
-      // Show error message or feedback
-    }
-  }
-
-  Future<void> _fetchData() async {
     try {
-      await globals.getRequest('https://fakestoreapi.com/products');
-      setState(() {
-        _isLoading = false;
-      });
+      // Step 1: Check for products in the local database
+      products = await productService.fetchProductsFromDb();
+
+      if (products.isEmpty) {
+        // Step 2: If no products in DB, fetch from the API
+        print("No products found in DB. Fetching from API...");
+        products = await productService.fetchProductsFromApi();
+
+        // Step 3: Insert fetched products into the local database
+        await productService.insertProductsIntoDb(products);
+        print("Fetched products from API and inserted into DB.");
+      } else {
+        print("Loaded products from DB.");
+      }
     } catch (e) {
-      print(e);
+      print("Error loading products: $e");
+    } finally {
       setState(() {
         _isLoading = false;
       });
@@ -154,12 +177,12 @@ class _MyHomePageState extends State<MyHomePage> {
                     child: const Text("Authenticate to Continue"),
                   ),
                 )
-              : globals.products.isEmpty
+              : products.isEmpty
                   ? const Center(child: Text("No products available"))
                   : ListView.builder(
-                      itemCount: globals.products.length,
+                      itemCount: products.length,
                       itemBuilder: (context, index) {
-                        final product = globals.products[index];
+                        final product = products[index];
                         return Padding(
                           padding: const EdgeInsets.all(8.0),
                           child: Center(
@@ -172,12 +195,12 @@ class _MyHomePageState extends State<MyHomePage> {
                                         CrossAxisAlignment.center,
                                     children: [
                                       Image.network(
-                                        product['image'],
+                                        product.imageUrl,
                                         width: screenWidth * 0.5,
                                       ),
                                       const SizedBox(height: 8.0),
                                       Text(
-                                        product['title'],
+                                        product.title,
                                         textAlign: TextAlign.center,
                                         style: const TextStyle(
                                           fontWeight: FontWeight.bold,
@@ -193,7 +216,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                       ),
                                       const SizedBox(height: 8.0),
                                       Text(
-                                        '\$${product['price']}',
+                                        '\$${product.price}',
                                         textAlign: TextAlign.left,
                                       ),
                                     ],
@@ -206,44 +229,6 @@ class _MyHomePageState extends State<MyHomePage> {
                         );
                       },
                     ),
-    );
-  }
-}
-
-// Widget for PIN input
-class PinInputScreen extends StatefulWidget {
-  final Function(String) onPinEntered;
-
-  const PinInputScreen({required this.onPinEntered, Key? key})
-      : super(key: key);
-
-  @override
-  _PinInputScreenState createState() => _PinInputScreenState();
-}
-
-class _PinInputScreenState extends State<PinInputScreen> {
-  final TextEditingController _pinController = TextEditingController();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        TextField(
-          controller: _pinController,
-          obscureText: true,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            labelText: 'Enter PIN',
-          ),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            widget.onPinEntered(_pinController.text);
-          },
-          child: const Text('Submit'),
-        ),
-      ],
     );
   }
 }
