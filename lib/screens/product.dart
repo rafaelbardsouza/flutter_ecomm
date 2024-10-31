@@ -18,22 +18,27 @@ class _ProductScreenState extends State<ProductScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.product.title),
+        title: Text(widget.product.title ??
+            "No title available"), // Handle nullable title
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Image.network(widget.product.imageUrl),
+            Image.network(
+              widget.product.imageUrl ??
+                  'https://via.placeholder.com/150', // Handle nullable imageUrl
+            ),
             SizedBox(height: 16.0),
             Text(
-              widget.product.title,
+              widget.product.title ??
+                  "No title available", // Handle nullable title
               style: TextStyle(fontSize: 24.0, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 8.0),
             Text(
-              '\$${widget.product.price}',
+              '\$${widget.product.price?.toStringAsFixed(2) ?? "N/A"}', // Handle nullable price
               style: TextStyle(fontSize: 20.0, color: Colors.green),
             ),
             SizedBox(height: 8.0),
@@ -61,8 +66,8 @@ class _ProductScreenState extends State<ProductScreen> {
   }
 
   Widget _buildExpandableDescription() {
-    final description =
-        widget.product.description ?? "No description available.";
+    final description = widget.product.description ??
+        "No description available."; // Handle nullable description
     final textSpan = TextSpan(
       text: description,
       style: TextStyle(fontSize: 16.0),

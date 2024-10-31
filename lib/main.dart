@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
-import 'widgets/pin_input_screen.dart'; // Import PinInputScreen
+import 'widgets/pin_input_screen.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter_ecomm/screens/product.dart';
 import 'services/product_service.dart';
 import 'database/app_database.dart';
 import 'database/product_model.dart';
@@ -40,10 +42,10 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   final LocalAuthentication auth = LocalAuthentication();
-  final AppDatabase database = AppDatabase();
+  final AppDatabase database = AppDatabase.instance;
   final ProductService productService;
 
-  _MyHomePageState() : productService = ProductService(AppDatabase());
+  _MyHomePageState() : productService = ProductService(AppDatabase.instance);
 
   bool _isAuthenticated = false;
   bool _isLoading = true;
@@ -95,7 +97,7 @@ class _MyHomePageState extends State<MyHomePage> {
           _isAuthenticated = false;
           _isLoading = false;
         });
-        _showPinAuthentication(); // Call PIN authentication if biometrics are unavailable
+        _showPinAuthentication();
         return;
       }
 
@@ -112,16 +114,16 @@ class _MyHomePageState extends State<MyHomePage> {
       });
 
       if (isAuthenticated) {
-        await _loadProducts(); // Updated to _loadProducts
+        await _loadProducts();
       } else {
-        _showPinAuthentication(); // Show PIN authentication if biometrics fail
+        _showPinAuthentication();
       }
     } catch (e) {
       print("Authentication error: $e");
       setState(() {
         _isLoading = false;
       });
-      _showPinAuthentication(); // Fall back to PIN authentication on error
+      _showPinAuthentication();
     }
   }
 
@@ -134,16 +136,23 @@ class _MyHomePageState extends State<MyHomePage> {
       // Step 1: Check for products in the local database
       products = await productService.fetchProductsFromDb();
 
-      if (products.isEmpty) {
-        // Step 2: If no products in DB, fetch from the API
-        print("No products found in DB. Fetching from API...");
-        products = await productService.fetchProductsFromApi();
-
-        // Step 3: Insert fetched products into the local database
-        await productService.insertProductsIntoDb(products);
-        print("Fetched products from API and inserted into DB.");
-      } else {
+      // If products exist in the database, load them
+      if (products.isNotEmpty) {
         print("Loaded products from DB.");
+      } else {
+        // Step 2: Check if internet connection is available
+        var connectivityResult = await (Connectivity().checkConnectivity());
+
+        if (connectivityResult == ConnectivityResult.none) {
+          // No internet, and database is empty
+          print("No internet connection and no local products available.");
+        } else {
+          // Connected to the internet, fetch products from API
+          print("No products found in DB. Fetching from API...");
+          products = await productService.fetchProductsFromApi();
+          await productService.insertProductsIntoDb(products);
+          print("Fetched products from API and inserted into DB.");
+        }
       }
     } catch (e) {
       print("Error loading products: $e");
@@ -195,19 +204,29 @@ class _MyHomePageState extends State<MyHomePage> {
                                         CrossAxisAlignment.center,
                                     children: [
                                       Image.network(
-                                        product.imageUrl,
+                                        product.imageUrl ??
+                                            'https://via.placeholder.com/150', // Default URL if imageUrl is null
                                         width: screenWidth * 0.5,
                                       ),
-                                      const SizedBox(height: 8.0),
                                       Text(
-                                        product.title,
+                                        product.title ??
+                                            "No title available", // Default text if title is null
                                         textAlign: TextAlign.center,
                                         style: const TextStyle(
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
                                       ElevatedButton(
-                                        onPressed: () {},
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  ProductScreen(
+                                                      product: product),
+                                            ),
+                                          );
+                                        },
                                         style: ElevatedButton.styleFrom(
                                           foregroundColor: Colors.white,
                                           backgroundColor: Colors.black,

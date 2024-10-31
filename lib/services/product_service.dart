@@ -2,7 +2,7 @@
 
 import 'package:flutter_ecomm/database/app_database.dart';
 import 'package:flutter_ecomm/database/product_model.dart';
-import 'package:drift/drift.dart'; // Import drift
+import 'package:drift/drift.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
@@ -24,33 +24,70 @@ class ProductService {
     }
   }
 
-  // Fetch products from the local database
+  // Fetch products from the local database with detailed logging
   Future<List<ProductModel>> fetchProductsFromDb() async {
-    final dbProducts = await database.select(database.products).get();
-    return dbProducts.map((product) {
-      return ProductModel(
-        id: product.id,
-        title: product.title,
-        price: product.price,
-        imageUrl: product.imageUrl,
-      );
-    }).toList();
+    try {
+      print("Starting to fetch products from the local database...");
+
+      final dbProducts = await database.select(database.products).get();
+
+      if (dbProducts.isEmpty) {
+        print("No products found in the local database.");
+      } else {
+        print("Fetched ${dbProducts.length} products from the database:");
+        for (var product in dbProducts) {
+          print(
+              ' - Product ID: ${product.id}, Title: ${product.title}, Price: ${product.price}, Image URL: ${product.imageUrl}');
+        }
+      }
+
+      return dbProducts.map((product) {
+        return ProductModel(
+          id: product.id,
+          title: product.title,
+          price: product.price,
+          imageUrl: product.imageUrl,
+        );
+      }).toList();
+    } catch (e) {
+      print("Error fetching products from the database: $e");
+      return [];
+    }
   }
 
-  // Insert fetched products into the local database
+  // Insert products into the local database and log each one
   Future<void> insertProductsIntoDb(List<ProductModel> products) async {
     await database.batch((batch) {
       batch.insertAll(
         database.products,
         products.map((product) {
+          final truncatedTitle =
+              (product.title != null && product.title!.length > 50)
+                  ? product.title!.substring(0, 50)
+                  : product.title;
+
+          print(
+              'Inserting product - ID: ${product.id}, Title: ${truncatedTitle}, Price: ${product.price ?? 0.0}, Image URL: ${product.imageUrl ?? ""}');
+
           return ProductsCompanion(
             id: Value(product.id),
-            title: Value(product.title),
-            price: Value(product.price),
-            imageUrl: Value(product.imageUrl),
+            title: Value(
+                truncatedTitle ?? "Unknown title"), // Truncated if too long
+            price: Value(product.price ?? 0.0),
+            imageUrl: Value(product.imageUrl ?? ""),
           );
         }).toList(),
       );
     });
+  }
+
+  // Method to log all products currently in the database
+  Future<void> logDatabaseContents() async {
+    final products = await fetchProductsFromDb();
+    print("Logging all products in the database:");
+    for (var product in products) {
+      print(
+          ' - Database content - ID: ${product.id}, Title: ${product.title}, Price: ${product.price}, Image URL: ${product.imageUrl}');
+    }
   }
 }
