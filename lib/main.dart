@@ -3,7 +3,6 @@ import 'package:flutter_ecomm/screens/product.dart';
 import 'package:local_auth/local_auth.dart';
 import 'widgets/pin_input_screen.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:flutter_ecomm/screens/product.dart';
 import 'services/product_service.dart';
 import 'database/app_database.dart';
 import 'database/product_model.dart';
