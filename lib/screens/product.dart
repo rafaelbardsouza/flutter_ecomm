@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_ecomm/database/product_model.dart';
 
 class ProductScreen extends StatefulWidget {
-  final Map<String, dynamic> product;
+  final ProductModel product;
 
   ProductScreen({required this.product});
 
@@ -17,29 +18,34 @@ class _ProductScreenState extends State<ProductScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.product['title']),
+        title: Text(widget.product.title ??
+            "No title available"), // Handle nullable title
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Image.network(widget.product['image']),
+            Image.network(
+              widget.product.imageUrl ??
+                  'https://via.placeholder.com/150', // Handle nullable imageUrl
+            ),
             SizedBox(height: 16.0),
             Text(
-              widget.product['title'],
+              widget.product.title ??
+                  "No title available", // Handle nullable title
               style: TextStyle(fontSize: 24.0, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 8.0),
             Text(
-              '\$${widget.product['price']}',
+              '\$${widget.product.price?.toStringAsFixed(2) ?? "N/A"}', // Handle nullable price
               style: TextStyle(fontSize: 20.0, color: Colors.green),
             ),
             SizedBox(height: 8.0),
             _buildExpandableDescription(),
             SizedBox(height: 16.0),
             Text(
-              'Category: ${widget.product['category']}',
+              'Category: ${widget.product.category ?? "N/A"}',
               style: TextStyle(fontSize: 16.0, fontStyle: FontStyle.italic),
             ),
             SizedBox(height: 16.0),
@@ -48,7 +54,7 @@ class _ProductScreenState extends State<ProductScreen> {
                 Icon(Icons.star, color: Colors.yellow),
                 SizedBox(width: 4.0),
                 Text(
-                  '${widget.product['rating']['rate']} (${widget.product['rating']['count']} reviews)',
+                  '${widget.product.rating?.rate ?? "0.0"} (${widget.product.rating?.count ?? 0} reviews)',
                   style: TextStyle(fontSize: 16.0),
                 ),
               ],
@@ -60,7 +66,8 @@ class _ProductScreenState extends State<ProductScreen> {
   }
 
   Widget _buildExpandableDescription() {
-    final description = widget.product['description'];
+    final description = widget.product.description ??
+        "No description available."; // Handle nullable description
     final textSpan = TextSpan(
       text: description,
       style: TextStyle(fontSize: 16.0),

@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_ecomm/screens/product.dart';
 import 'package:local_auth/local_auth.dart';
-import 'globals.dart' as globals;
+import 'widgets/pin_input_screen.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter_ecomm/screens/product.dart';
+import 'services/product_service.dart';
+import 'database/app_database.dart';
+import 'database/product_model.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 void main() {
   runApp(const MyApp());
@@ -38,8 +44,15 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   final LocalAuthentication auth = LocalAuthentication();
+  final AppDatabase database = AppDatabase.instance;
+  final ProductService productService;
+  final FlutterSecureStorage _secureStorage = FlutterSecureStorage();
+
+  _MyHomePageState() : productService = ProductService(AppDatabase.instance);
+
   bool _isAuthenticated = false;
   bool _isLoading = true;
+  List<ProductModel> products = [];
 
   @override
   void initState() {
@@ -52,38 +65,28 @@ class _MyHomePageState extends State<MyHomePage> {
       bool canCheckBiometrics = await auth.canCheckBiometrics;
       bool isDeviceSupported = await auth.isDeviceSupported();
 
-      if (!canCheckBiometrics || !isDeviceSupported) {
-        setState(() {
-          _isAuthenticated = false;
-          _isLoading = false;
-        });
-        _showPinAuthentication(); // Call PIN authentication if biometrics are unavailable
-        return;
+      if (canCheckBiometrics && isDeviceSupported) {
+        final isAuthenticated = await auth.authenticate(
+          localizedReason: 'Please authenticate to access your products',
+          options: const AuthenticationOptions(
+            biometricOnly: true,
+          ),
+        );
+
+        if (isAuthenticated) {
+          setState(() {
+            _isAuthenticated = true;
+            _isLoading = false;
+          });
+          await _loadProducts();
+          return;
+        }
       }
 
-      final isAuthenticated = await auth.authenticate(
-        localizedReason: 'Please authenticate to access your products',
-        options: const AuthenticationOptions(
-          biometricOnly: true,
-        ),
-      );
-
-      setState(() {
-        _isAuthenticated = isAuthenticated;
-        _isLoading = !isAuthenticated;
-      });
-
-      if (isAuthenticated) {
-        await _fetchData();
-      } else {
-        _showPinAuthentication(); // Show PIN authentication if biometrics fail
-      }
+      _showPinAuthentication();
     } catch (e) {
       print("Authentication error: $e");
-      setState(() {
-        _isLoading = false;
-      });
-      _showPinAuthentication(); // Fall back to PIN authentication on error
+      _showPinAuthentication();
     }
   }
 
@@ -94,38 +97,62 @@ class _MyHomePageState extends State<MyHomePage> {
         return AlertDialog(
           title: const Text('Enter PIN'),
           content: PinInputScreen(
-            onPinEntered: (String pin) {
-              _validatePin(pin);
-            },
+            onPinEntered: _validatePin,
           ),
         );
       },
     );
   }
 
-  void _validatePin(String enteredPin) async {
-    const correctPin = "1234"; // Example PIN; retrieve or hash as needed
-    if (enteredPin == correctPin) {
+  Future<void> _validatePin(String enteredPin) async {
+    final savedPin = await _secureStorage.read(key: 'userPin');
+
+    if (savedPin == null) {
+      await _secureStorage.write(key: 'userPin', value: enteredPin);
+      print("PIN set successfully");
       setState(() {
         _isAuthenticated = true;
         _isLoading = false;
       });
-      Navigator.of(context).pop(); // Close the PIN input dialog
-      await _fetchData();
+      Navigator.of(context).pop();
+      await _loadProducts();
+    } else if (enteredPin == savedPin) {
+      setState(() {
+        _isAuthenticated = true;
+        _isLoading = false;
+      });
+      Navigator.of(context).pop();
+      await _loadProducts();
     } else {
       print("Incorrect PIN");
-      // Show error message or feedback
     }
   }
 
-  Future<void> _fetchData() async {
+  Future<void> _loadProducts() async {
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
-      await globals.getRequest('https://fakestoreapi.com/products');
-      setState(() {
-        _isLoading = false;
-      });
+      products = await productService.fetchProductsFromDb();
+
+      if (products.isNotEmpty) {
+        print("Loaded products from DB.");
+      } else {
+        var connectivityResult = await (Connectivity().checkConnectivity());
+
+        if (connectivityResult == ConnectivityResult.none) {
+          print("No internet connection and no local products available.");
+        } else {
+          print("No products found in DB. Fetching from API...");
+          products = await productService.fetchProductsFromApi();
+          await productService.insertProductsIntoDb(products);
+          print("Fetched products from API and inserted into DB.");
+        }
+      }
     } catch (e) {
-      print(e);
+      print("Error loading products: $e");
+    } finally {
       setState(() {
         _isLoading = false;
       });
@@ -155,12 +182,12 @@ class _MyHomePageState extends State<MyHomePage> {
                     child: const Text("Authenticate to Continue"),
                   ),
                 )
-              : globals.products.isEmpty
+              : products.isEmpty
                   ? const Center(child: Text("No products available"))
                   : ListView.builder(
-                      itemCount: globals.products.length,
+                      itemCount: products.length,
                       itemBuilder: (context, index) {
-                        final product = globals.products[index];
+                        final product = products[index];
                         return Padding(
                           padding: const EdgeInsets.all(8.0),
                           child: Center(
@@ -173,12 +200,12 @@ class _MyHomePageState extends State<MyHomePage> {
                                         CrossAxisAlignment.center,
                                     children: [
                                       Image.network(
-                                        product['image'],
+                                        product.imageUrl ??
+                                            'https://via.placeholder.com/150',
                                         width: screenWidth * 0.5,
                                       ),
-                                      const SizedBox(height: 8.0),
                                       Text(
-                                        product['title'],
+                                        product.title ?? "No title available",
                                         textAlign: TextAlign.center,
                                         style: const TextStyle(
                                           fontWeight: FontWeight.bold,
@@ -189,9 +216,9 @@ class _MyHomePageState extends State<MyHomePage> {
                                           Navigator.push(
                                             context,
                                             MaterialPageRoute(
-                                              builder: (context) => ProductScreen(
-                                                product: product,
-                                              ),
+                                              builder: (context) =>
+                                                  ProductScreen(
+                                                      product: product),
                                             ),
                                           );
                                         },
@@ -203,7 +230,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                       ),
                                       const SizedBox(height: 8.0),
                                       Text(
-                                        '\$${product['price']}',
+                                        '\$${product.price}',
                                         textAlign: TextAlign.left,
                                       ),
                                     ],
@@ -216,44 +243,6 @@ class _MyHomePageState extends State<MyHomePage> {
                         );
                       },
                     ),
-    );
-  }
-}
-
-// Widget for PIN input
-class PinInputScreen extends StatefulWidget {
-  final Function(String) onPinEntered;
-
-  const PinInputScreen({required this.onPinEntered, Key? key})
-      : super(key: key);
-
-  @override
-  _PinInputScreenState createState() => _PinInputScreenState();
-}
-
-class _PinInputScreenState extends State<PinInputScreen> {
-  final TextEditingController _pinController = TextEditingController();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        TextField(
-          controller: _pinController,
-          obscureText: true,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            labelText: 'Enter PIN',
-          ),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            widget.onPinEntered(_pinController.text);
-          },
-          child: const Text('Submit'),
-        ),
-      ],
     );
   }
 }
