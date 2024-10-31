@@ -1,5 +1,3 @@
-// product_service.dart
-
 import 'package:flutter_ecomm/database/app_database.dart';
 import 'package:flutter_ecomm/database/product_model.dart';
 import 'package:drift/drift.dart';
@@ -11,7 +9,6 @@ class ProductService {
 
   ProductService(this.database);
 
-  // Method to fetch products from the API
   Future<List<ProductModel>> fetchProductsFromApi() async {
     final response =
         await http.get(Uri.parse('https://fakestoreapi.com/products'));
@@ -24,7 +21,6 @@ class ProductService {
     }
   }
 
-  // Fetch products from the local database with detailed logging
   Future<List<ProductModel>> fetchProductsFromDb() async {
     try {
       print("Starting to fetch products from the local database...");
@@ -55,7 +51,6 @@ class ProductService {
     }
   }
 
-  // Insert products into the local database and log each one
   Future<void> insertProductsIntoDb(List<ProductModel> products) async {
     await database.batch((batch) {
       batch.insertAll(
@@ -71,8 +66,7 @@ class ProductService {
 
           return ProductsCompanion(
             id: Value(product.id),
-            title: Value(
-                truncatedTitle ?? "Unknown title"), // Truncated if too long
+            title: Value(truncatedTitle ?? "Unknown title"),
             price: Value(product.price ?? 0.0),
             imageUrl: Value(product.imageUrl ?? ""),
           );
@@ -81,7 +75,6 @@ class ProductService {
     });
   }
 
-  // Method to log all products currently in the database
   Future<void> logDatabaseContents() async {
     final products = await fetchProductsFromDb();
     print("Logging all products in the database:");

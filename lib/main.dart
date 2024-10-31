@@ -6,6 +6,7 @@ import 'package:flutter_ecomm/screens/product.dart';
 import 'services/product_service.dart';
 import 'database/app_database.dart';
 import 'database/product_model.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 void main() {
   runApp(const MyApp());
@@ -44,17 +45,48 @@ class _MyHomePageState extends State<MyHomePage> {
   final LocalAuthentication auth = LocalAuthentication();
   final AppDatabase database = AppDatabase.instance;
   final ProductService productService;
+  final FlutterSecureStorage _secureStorage = FlutterSecureStorage();
 
   _MyHomePageState() : productService = ProductService(AppDatabase.instance);
 
   bool _isAuthenticated = false;
   bool _isLoading = true;
-  List<ProductModel> products = []; // Use ProductModel for the list
+  List<ProductModel> products = [];
 
   @override
   void initState() {
     super.initState();
     _authenticate();
+  }
+
+  Future<void> _authenticate() async {
+    try {
+      bool canCheckBiometrics = await auth.canCheckBiometrics;
+      bool isDeviceSupported = await auth.isDeviceSupported();
+
+      if (canCheckBiometrics && isDeviceSupported) {
+        final isAuthenticated = await auth.authenticate(
+          localizedReason: 'Please authenticate to access your products',
+          options: const AuthenticationOptions(
+            biometricOnly: true,
+          ),
+        );
+
+        if (isAuthenticated) {
+          setState(() {
+            _isAuthenticated = true;
+            _isLoading = false;
+          });
+          await _loadProducts();
+          return;
+        }
+      }
+
+      _showPinAuthentication();
+    } catch (e) {
+      print("Authentication error: $e");
+      _showPinAuthentication();
+    }
   }
 
   void _showPinAuthentication() {
@@ -64,18 +96,26 @@ class _MyHomePageState extends State<MyHomePage> {
         return AlertDialog(
           title: const Text('Enter PIN'),
           content: PinInputScreen(
-            onPinEntered: (String pin) {
-              _validatePin(pin);
-            },
+            onPinEntered: _validatePin,
           ),
         );
       },
     );
   }
 
-  void _validatePin(String enteredPin) async {
-    const correctPin = "1234";
-    if (enteredPin == correctPin) {
+  Future<void> _validatePin(String enteredPin) async {
+    final savedPin = await _secureStorage.read(key: 'userPin');
+
+    if (savedPin == null) {
+      await _secureStorage.write(key: 'userPin', value: enteredPin);
+      print("PIN set successfully");
+      setState(() {
+        _isAuthenticated = true;
+        _isLoading = false;
+      });
+      Navigator.of(context).pop();
+      await _loadProducts();
+    } else if (enteredPin == savedPin) {
       setState(() {
         _isAuthenticated = true;
         _isLoading = false;
@@ -87,67 +127,22 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  Future<void> _authenticate() async {
-    try {
-      bool canCheckBiometrics = await auth.canCheckBiometrics;
-      bool isDeviceSupported = await auth.isDeviceSupported();
-
-      if (!canCheckBiometrics || !isDeviceSupported) {
-        setState(() {
-          _isAuthenticated = false;
-          _isLoading = false;
-        });
-        _showPinAuthentication();
-        return;
-      }
-
-      final isAuthenticated = await auth.authenticate(
-        localizedReason: 'Please authenticate to access your products',
-        options: const AuthenticationOptions(
-          biometricOnly: true,
-        ),
-      );
-
-      setState(() {
-        _isAuthenticated = isAuthenticated;
-        _isLoading = !isAuthenticated;
-      });
-
-      if (isAuthenticated) {
-        await _loadProducts();
-      } else {
-        _showPinAuthentication();
-      }
-    } catch (e) {
-      print("Authentication error: $e");
-      setState(() {
-        _isLoading = false;
-      });
-      _showPinAuthentication();
-    }
-  }
-
   Future<void> _loadProducts() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      // Step 1: Check for products in the local database
       products = await productService.fetchProductsFromDb();
 
-      // If products exist in the database, load them
       if (products.isNotEmpty) {
         print("Loaded products from DB.");
       } else {
-        // Step 2: Check if internet connection is available
         var connectivityResult = await (Connectivity().checkConnectivity());
 
         if (connectivityResult == ConnectivityResult.none) {
-          // No internet, and database is empty
           print("No internet connection and no local products available.");
         } else {
-          // Connected to the internet, fetch products from API
           print("No products found in DB. Fetching from API...");
           products = await productService.fetchProductsFromApi();
           await productService.insertProductsIntoDb(products);
@@ -205,12 +200,11 @@ class _MyHomePageState extends State<MyHomePage> {
                                     children: [
                                       Image.network(
                                         product.imageUrl ??
-                                            'https://via.placeholder.com/150', // Default URL if imageUrl is null
+                                            'https://via.placeholder.com/150',
                                         width: screenWidth * 0.5,
                                       ),
                                       Text(
-                                        product.title ??
-                                            "No title available", // Default text if title is null
+                                        product.title ?? "No title available",
                                         textAlign: TextAlign.center,
                                         style: const TextStyle(
                                           fontWeight: FontWeight.bold,

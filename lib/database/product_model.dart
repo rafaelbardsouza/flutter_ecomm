@@ -1,9 +1,8 @@
-// lib/database/product_model.dart
 class ProductModel {
   final int id;
-  final String? title; // Nullable
-  final double? price; // Nullable
-  final String? imageUrl; // Nullable
+  final String? title;
+  final double? price;
+  final String? imageUrl;
   final String? category;
   final String? description;
   final Rating? rating;
@@ -21,9 +20,8 @@ class ProductModel {
   factory ProductModel.fromJson(Map<String, dynamic> json) {
     return ProductModel(
       id: json['id'],
-      title: json['title'] as String?, // Cast to nullable type
-      price:
-          (json['price'] as num?)?.toDouble(), // Handle nullable numeric fields
+      title: json['title'] as String?,
+      price: (json['price'] as num?)?.toDouble(),
       imageUrl: json['image'] as String?,
       category: json['category'] as String?,
       description: json['description'] as String?,
@@ -32,7 +30,6 @@ class ProductModel {
   }
 }
 
-// Assuming `Rating` is a nested object
 class Rating {
   final double rate;
   final int count;
