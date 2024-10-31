@@ -1,26 +1,15 @@
+// product_service.dart
+
 import 'package:flutter_ecomm/database/app_database.dart';
-import 'package:flutter_ecomm/database/product_model.dart'; // Import ProductModel
-import 'dart:convert';
-import 'package:drift/drift.dart';
+import 'package:flutter_ecomm/database/product_model.dart';
+import 'package:drift/drift.dart'; // Import drift
 import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class ProductService {
   final AppDatabase database;
 
   ProductService(this.database);
-
-  // Method to fetch products from local database
-  Future<List<ProductModel>> fetchProductsFromDb() async {
-    final dbProducts = await database.select(database.products).get();
-    return dbProducts
-        .map((product) => ProductModel(
-              id: product.id,
-              title: product.title,
-              price: product.price,
-              imageUrl: product.imageUrl,
-            ))
-        .toList();
-  }
 
   // Method to fetch products from the API
   Future<List<ProductModel>> fetchProductsFromApi() async {
@@ -35,7 +24,20 @@ class ProductService {
     }
   }
 
-  // Method to insert fetched products into local database
+  // Fetch products from the local database
+  Future<List<ProductModel>> fetchProductsFromDb() async {
+    final dbProducts = await database.select(database.products).get();
+    return dbProducts.map((product) {
+      return ProductModel(
+        id: product.id,
+        title: product.title,
+        price: product.price,
+        imageUrl: product.imageUrl,
+      );
+    }).toList();
+  }
+
+  // Insert fetched products into the local database
   Future<void> insertProductsIntoDb(List<ProductModel> products) async {
     await database.batch((batch) {
       batch.insertAll(
